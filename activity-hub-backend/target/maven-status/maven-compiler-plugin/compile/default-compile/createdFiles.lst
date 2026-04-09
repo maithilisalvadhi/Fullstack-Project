@@ -1,0 +1,12 @@
+com\campus\activityhub\config\WebConfig.class
+com\campus\activityhub\service\DatabaseService.class
+com\campus\activityhub\controller\ActivityController.class
+com\campus\activityhub\controller\AuthController.class
+com\campus\activityhub\model\Notification.class
+com\campus\activityhub\controller\RegistrationController.class
+com\campus\activityhub\controller\TestController.class
+com\campus\activityhub\ActivityHubApplication.class
+com\campus\activityhub\controller\NotificationController.class
+com\campus\activityhub\model\Registration.class
+com\campus\activityhub\model\Activity.class
+com\campus\activityhub\model\User.class
