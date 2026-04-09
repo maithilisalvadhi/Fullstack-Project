@@ -1,0 +1,5 @@
+
+The following files have been resolved:
+   org.springframework.boot:spring-boot-starter-web:jar:3.3.0:compile[36m -- module spring.boot.starter.web[0;1m [auto][m
+   org.projectlombok:lombok:jar:1.18.32:compile (optional)[36m -- module lombok[m
+
