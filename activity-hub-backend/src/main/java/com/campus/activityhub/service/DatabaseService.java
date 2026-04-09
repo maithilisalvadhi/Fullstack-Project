@@ -4,34 +4,75 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class DatabaseService {
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final String dbFilePath = "db.json";
+    private static final List<String> DEFAULT_KEYS = Arrays.asList(
+            "users",
+            "activities",
+            "registrations",
+            "notifications");
 
-    /**
-     * Read the entire db.json file
-     */
-    public JsonNode readDatabase() throws IOException {
-        File file = new File(dbFilePath);
-        if (!file.exists()) {
-            throw new IOException("db.json not found");
-        }
-        return mapper.readTree(file);
+    private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper mapper;
+
+    public DatabaseService(JdbcTemplate jdbcTemplate, ObjectMapper mapper) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.mapper = mapper;
     }
 
     /**
-     * Write entire db.json file
+     * Read the entire database document from MySQL.
+     */
+    public JsonNode readDatabase() throws IOException {
+        ObjectNode root = mapper.createObjectNode();
+
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT db_key, payload FROM app_data");
+        for (java.util.Map<String, Object> row : rows) {
+            String key = String.valueOf(row.get("db_key"));
+            String payload = row.get("payload") == null ? null : String.valueOf(row.get("payload"));
+            JsonNode value = payload == null || payload.isBlank()
+                    ? mapper.createArrayNode()
+                    : mapper.readTree(payload);
+            root.set(key, value);
+        }
+
+        for (String key : DEFAULT_KEYS) {
+            if (!root.has(key)) {
+                root.set(key, mapper.createArrayNode());
+            }
+        }
+
+        return root;
+    }
+
+    /**
+     * Write the full database document back to MySQL.
      */
     public void writeDatabase(JsonNode data) throws IOException {
-        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(dbFilePath), data);
+        if (data == null || !data.isObject()) {
+            throw new IOException("Database payload must be a JSON object");
+        }
+
+        Set<String> keysToPersist = new LinkedHashSet<>(DEFAULT_KEYS);
+        data.fieldNames().forEachRemaining(keysToPersist::add);
+
+        for (String key : keysToPersist) {
+            JsonNode value = data.get(key);
+            if (value == null) {
+                value = mapper.createArrayNode();
+            }
+            upsertSection(key, value);
+        }
     }
 
     /**
@@ -119,5 +160,14 @@ public class DatabaseService {
             list.add((ObjectNode) array.get(i));
         }
         return list;
+    }
+
+    private void upsertSection(String key, JsonNode value) throws IOException {
+        String payload = mapper.writeValueAsString(value);
+        jdbcTemplate.update(
+                "INSERT INTO app_data (db_key, payload) VALUES (?, ?) ON DUPLICATE KEY UPDATE payload = ?",
+                key,
+                payload,
+                payload);
     }
 }
